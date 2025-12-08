@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import { LatLng, Icon } from 'leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,32 +8,41 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Save, X } from 'lucide-react';
 
 // Fix for default marker icon
-const defaultIcon = new Icon({
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
 });
 
 interface MapComponentProps {
-  onSaveArea?: (area: { name: string; latitude: number; longitude: number; bounds?: object; metadata?: object }) => void;
+  onSaveArea?: (area: { name: string; latitude: number; longitude: number; bounds?: Record<string, unknown>; metadata?: Record<string, unknown> }) => void;
   selectedLocation?: { lat: number; lng: number } | null;
   onLocationSelect?: (location: { lat: number; lng: number }) => void;
   height?: string;
 }
 
-function LocationMarker({ position, setPosition }: { position: LatLng | null; setPosition: (pos: LatLng) => void }) {
+interface LocationMarkerProps {
+  position: L.LatLng | null;
+  onPositionChange: (pos: L.LatLng) => void;
+}
+
+function LocationMarker({ position, onPositionChange }: LocationMarkerProps) {
   useMapEvents({
     click(e) {
-      setPosition(e.latlng);
+      onPositionChange(e.latlng);
     },
   });
 
-  return position ? <Marker position={position} icon={defaultIcon} /> : null;
+  if (!position) return null;
+  return <Marker position={position} />;
 }
 
-function MapUpdater({ center }: { center: [number, number] }) {
+interface MapUpdaterProps {
+  center: [number, number];
+}
+
+function MapUpdater({ center }: MapUpdaterProps) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, 13);
@@ -41,24 +50,24 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-export const MapComponent = ({ onSaveArea, selectedLocation, onLocationSelect, height = '400px' }: MapComponentProps) => {
-  const [position, setPosition] = useState<LatLng | null>(
-    selectedLocation ? new LatLng(selectedLocation.lat, selectedLocation.lng) : null
+export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, height = '400px' }: MapComponentProps) {
+  const [position, setPosition] = useState<L.LatLng | null>(
+    selectedLocation ? L.latLng(selectedLocation.lat, selectedLocation.lng) : null
   );
   const [areaName, setAreaName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
-  const defaultCenter: [number, number] = [20.5937, 78.9629]; // India center
+  const defaultCenter: [number, number] = [20.5937, 78.9629];
 
   useEffect(() => {
     if (selectedLocation) {
-      setPosition(new LatLng(selectedLocation.lat, selectedLocation.lng));
+      setPosition(L.latLng(selectedLocation.lat, selectedLocation.lng));
     }
   }, [selectedLocation]);
 
-  const handlePositionChange = (newPos: LatLng) => {
+  const handlePositionChange = useCallback((newPos: L.LatLng) => {
     setPosition(newPos);
     onLocationSelect?.({ lat: newPos.lat, lng: newPos.lng });
-  };
+  }, [onLocationSelect]);
 
   const handleSave = () => {
     if (!position || !areaName.trim()) return;
@@ -74,6 +83,10 @@ export const MapComponent = ({ onSaveArea, selectedLocation, onLocationSelect, h
     setShowSaveForm(false);
   };
 
+  const mapCenter = selectedLocation 
+    ? [selectedLocation.lat, selectedLocation.lng] as [number, number]
+    : defaultCenter;
+
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
@@ -85,16 +98,17 @@ export const MapComponent = ({ onSaveArea, selectedLocation, onLocationSelect, h
       <CardContent className="space-y-3">
         <div className="rounded-lg overflow-hidden border" style={{ height }}>
           <MapContainer
-            center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : defaultCenter}
+            center={mapCenter}
             zoom={5}
             style={{ height: '100%', width: '100%' }}
+            scrollWheelZoom={true}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <LocationMarker position={position} setPosition={handlePositionChange} />
-            {selectedLocation && <MapUpdater center={[selectedLocation.lat, selectedLocation.lng]} />}
+            <LocationMarker position={position} onPositionChange={handlePositionChange} />
+            {selectedLocation && <MapUpdater center={mapCenter} />}
           </MapContainer>
         </div>
 
@@ -131,4 +145,4 @@ export const MapComponent = ({ onSaveArea, selectedLocation, onLocationSelect, h
       </CardContent>
     </Card>
   );
-};
+}
