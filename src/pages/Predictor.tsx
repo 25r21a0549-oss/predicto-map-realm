@@ -57,7 +57,7 @@ export default function Predictor() {
     setLoading(false);
   };
 
-  const handleSaveArea = async (areaData: { name: string; latitude: number; longitude: number; metadata?: object }) => {
+  const handleSaveArea = async (areaData: { name: string; latitude: number; longitude: number; metadata?: Record<string, unknown> }) => {
     await saveArea(areaData);
   };
 
