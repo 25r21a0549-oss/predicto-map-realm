@@ -49,7 +49,7 @@ export const usePredictions = () => {
 
     const { data, error } = await supabase
       .from('predictions')
-      .insert({ ...prediction, user_id: user.id })
+      .insert([{ ...prediction, user_id: user.id } as any])
       .select()
       .single();
 

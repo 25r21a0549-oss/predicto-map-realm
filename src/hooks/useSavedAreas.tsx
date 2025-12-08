@@ -49,7 +49,7 @@ export const useSavedAreas = () => {
 
     const { data, error } = await supabase
       .from('saved_areas')
-      .insert({ ...area, user_id: user.id })
+      .insert([{ ...area, user_id: user.id } as any])
       .select()
       .single();
 
