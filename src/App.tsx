@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Predictor from "./pages/Predictor";
 import ROI from "./pages/ROI";
 import Account from "./pages/Account";
+import Compare from "./pages/Compare";
+import TaxCalculator from "./pages/TaxCalculator";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +39,8 @@ const AppRoutes = () => {
       <Route path="/predictor" element={<ProtectedRoute><Predictor /></ProtectedRoute>} />
       <Route path="/roi" element={<ProtectedRoute><ROI /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+      <Route path="/compare" element={<ProtectedRoute><Compare /></ProtectedRoute>} />
+      <Route path="/tax-calculator" element={<ProtectedRoute><TaxCalculator /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

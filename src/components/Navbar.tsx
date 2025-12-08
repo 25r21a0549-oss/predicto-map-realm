@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { Home, Map, TrendingUp, PieChart, User, LayoutDashboard, LogOut } from 'lucide-react';
+import { Home, Map, TrendingUp, PieChart, User, LayoutDashboard, LogOut, GitCompare, Calculator } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, signOut } = useAuth();
@@ -11,6 +11,8 @@ export const Navbar = () => {
     { path: '/', label: 'Home', icon: Home },
     { path: '/predictor', label: 'Predictor', icon: TrendingUp },
     { path: '/roi', label: 'ROI', icon: PieChart },
+    { path: '/compare', label: 'Compare', icon: GitCompare },
+    { path: '/tax-calculator', label: 'Tax', icon: Calculator },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/account', label: 'Account', icon: User },
   ];

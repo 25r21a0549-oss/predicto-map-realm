@@ -3,21 +3,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Save, X, Loader2 } from 'lucide-react';
+import { MapSearchBar } from './MapSearchBar';
 
 interface MapComponentProps {
   onSaveArea?: (area: { name: string; latitude: number; longitude: number; bounds?: Record<string, unknown>; metadata?: Record<string, unknown> }) => void;
   selectedLocation?: { lat: number; lng: number } | null;
   onLocationSelect?: (location: { lat: number; lng: number }) => void;
   height?: string;
+  showSearch?: boolean;
 }
 
 // Lazy load the actual map to avoid SSR/hydration issues
 const MapInner = lazy(() => import('./MapInner'));
 
-export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, height = '400px' }: MapComponentProps) {
+export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, height = '400px', showSearch = true }: MapComponentProps) {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(selectedLocation || null);
   const [areaName, setAreaName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (selectedLocation) {
@@ -29,6 +32,16 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
     setPosition(newPos);
     onLocationSelect?.(newPos);
   }, [onLocationSelect]);
+
+  const handleSearchLocationSelect = useCallback((location: { lat: number; lng: number; name: string }) => {
+    setPosition({ lat: location.lat, lng: location.lng });
+    setSearchLocation({ lat: location.lat, lng: location.lng });
+    onLocationSelect?.({ lat: location.lat, lng: location.lng });
+    // Pre-fill area name with search result
+    if (!areaName) {
+      setAreaName(location.name.split(',')[0]);
+    }
+  }, [onLocationSelect, areaName]);
 
   const handleSave = () => {
     if (!position || !areaName.trim()) return;
@@ -53,6 +66,11 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Search Bar - NEW FEATURE */}
+        {showSearch && (
+          <MapSearchBar onLocationSelect={handleSearchLocationSelect} />
+        )}
+
         <div className="rounded-lg overflow-hidden border" style={{ height }}>
           <Suspense fallback={
             <div className="h-full w-full flex items-center justify-center bg-muted">
@@ -62,7 +80,7 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
             <MapInner
               position={position}
               onPositionChange={handlePositionChange}
-              selectedLocation={selectedLocation}
+              selectedLocation={searchLocation || selectedLocation}
             />
           </Suspense>
         </div>
