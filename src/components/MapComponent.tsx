@@ -1,19 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Save, X } from 'lucide-react';
-
-// Fix for default marker icon
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+import { MapPin, Save, X, Loader2 } from 'lucide-react';
 
 interface MapComponentProps {
   onSaveArea?: (area: { name: string; latitude: number; longitude: number; bounds?: Record<string, unknown>; metadata?: Record<string, unknown> }) => void;
@@ -22,51 +11,23 @@ interface MapComponentProps {
   height?: string;
 }
 
-interface LocationMarkerProps {
-  position: L.LatLng | null;
-  onPositionChange: (pos: L.LatLng) => void;
-}
-
-function LocationMarker({ position, onPositionChange }: LocationMarkerProps) {
-  useMapEvents({
-    click(e) {
-      onPositionChange(e.latlng);
-    },
-  });
-
-  if (!position) return null;
-  return <Marker position={position} />;
-}
-
-interface MapUpdaterProps {
-  center: [number, number];
-}
-
-function MapUpdater({ center }: MapUpdaterProps) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(center, 13);
-  }, [center, map]);
-  return null;
-}
+// Lazy load the actual map to avoid SSR/hydration issues
+const MapInner = lazy(() => import('./MapInner'));
 
 export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, height = '400px' }: MapComponentProps) {
-  const [position, setPosition] = useState<L.LatLng | null>(
-    selectedLocation ? L.latLng(selectedLocation.lat, selectedLocation.lng) : null
-  );
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(selectedLocation || null);
   const [areaName, setAreaName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
-  const defaultCenter: [number, number] = [20.5937, 78.9629];
 
   useEffect(() => {
     if (selectedLocation) {
-      setPosition(L.latLng(selectedLocation.lat, selectedLocation.lng));
+      setPosition(selectedLocation);
     }
   }, [selectedLocation]);
 
-  const handlePositionChange = useCallback((newPos: L.LatLng) => {
+  const handlePositionChange = useCallback((newPos: { lat: number; lng: number }) => {
     setPosition(newPos);
-    onLocationSelect?.({ lat: newPos.lat, lng: newPos.lng });
+    onLocationSelect?.(newPos);
   }, [onLocationSelect]);
 
   const handleSave = () => {
@@ -83,10 +44,6 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
     setShowSaveForm(false);
   };
 
-  const mapCenter = selectedLocation 
-    ? [selectedLocation.lat, selectedLocation.lng] as [number, number]
-    : defaultCenter;
-
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
@@ -97,19 +54,17 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="rounded-lg overflow-hidden border" style={{ height }}>
-          <MapContainer
-            center={mapCenter}
-            zoom={5}
-            style={{ height: '100%', width: '100%' }}
-            scrollWheelZoom={true}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          <Suspense fallback={
+            <div className="h-full w-full flex items-center justify-center bg-muted">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          }>
+            <MapInner
+              position={position}
+              onPositionChange={handlePositionChange}
+              selectedLocation={selectedLocation}
             />
-            <LocationMarker position={position} onPositionChange={handlePositionChange} />
-            {selectedLocation && <MapUpdater center={mapCenter} />}
-          </MapContainer>
+          </Suspense>
         </div>
 
         {position && (
