@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Save, X, Loader2 } from 'lucide-react';
+import { MapPin, Save, X, Loader2, Navigation } from 'lucide-react';
 import { MapSearchBar } from './MapSearchBar';
+import { toast } from 'sonner';
 
 interface MapComponentProps {
   onSaveArea?: (area: { name: string; latitude: number; longitude: number; bounds?: Record<string, unknown>; metadata?: Record<string, unknown> }) => void;
@@ -21,6 +22,43 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
   const [areaName, setAreaName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [searchLocation, setSearchLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleUseCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const newLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setPosition(newLocation);
+        setSearchLocation(newLocation);
+        onLocationSelect?.(newLocation);
+        setIsLocating(false);
+        toast.success('Location found!');
+      },
+      (error) => {
+        setIsLocating(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('Location permission denied');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error('Location unavailable');
+            break;
+          case error.TIMEOUT:
+            toast.error('Location request timed out');
+            break;
+          default:
+            toast.error('Unable to get location');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, [onLocationSelect]);
 
   useEffect(() => {
     if (selectedLocation) {
@@ -66,9 +104,27 @@ export function MapComponent({ onSaveArea, selectedLocation, onLocationSelect, h
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Search Bar - NEW FEATURE */}
+        {/* Search Bar and GPS Button */}
         {showSearch && (
-          <MapSearchBar onLocationSelect={handleSearchLocationSelect} />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <MapSearchBar onLocationSelect={handleSearchLocationSelect} />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocating}
+              title="Use my current location"
+              className="shrink-0"
+            >
+              {isLocating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Navigation className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         )}
 
         <div className="rounded-lg overflow-hidden border" style={{ height }}>
