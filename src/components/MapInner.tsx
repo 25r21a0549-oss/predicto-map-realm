@@ -63,10 +63,21 @@ export default function MapInner({ position, onPositionChange, selectedLocation 
     }
   }, [position]);
 
-  // Handle selectedLocation center updates
+  // Handle selectedLocation center updates - zoom to 16 for searched locations
   useEffect(() => {
     if (!mapRef.current || !selectedLocation) return;
-    mapRef.current.setView([selectedLocation.lat, selectedLocation.lng], 13);
+    
+    // Remove existing marker
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+    
+    // Center map and zoom to searched location
+    mapRef.current.setView([selectedLocation.lat, selectedLocation.lng], 16);
+    
+    // Place new marker at searched location
+    markerRef.current = L.marker([selectedLocation.lat, selectedLocation.lng]).addTo(mapRef.current);
   }, [selectedLocation]);
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;
