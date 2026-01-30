@@ -67,6 +67,8 @@ export default function MapInner({ position, onPositionChange, selectedLocation 
   // Handle selectedLocation center updates - zoom to 16 for searched locations
   useEffect(() => {
     if (!mapRef.current || !selectedLocation) return;
+    const map = mapRef.current;
+    const target: [number, number] = [selectedLocation.lat, selectedLocation.lng];
     
     // Remove existing marker
     if (markerRef.current) {
@@ -75,10 +77,15 @@ export default function MapInner({ position, onPositionChange, selectedLocation 
     }
     
     // Center map and zoom to searched location
-    mapRef.current.setView([selectedLocation.lat, selectedLocation.lng], 16);
+    // In some layouts (e.g., suspense mount / resizing), Leaflet may need a size recalculation
+    // to correctly apply pan/zoom updates.
+    map.invalidateSize();
+    map.setView(target, 16, { animate: true });
+    // Extra async invalidate to ensure the visual pan/zoom is applied reliably.
+    setTimeout(() => map.invalidateSize(), 0);
     
     // Place new marker at searched location
-    markerRef.current = L.marker([selectedLocation.lat, selectedLocation.lng]).addTo(mapRef.current);
+    markerRef.current = L.marker(target).addTo(map);
   }, [selectedLocation]);
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;
