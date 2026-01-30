@@ -65,10 +65,14 @@ export default function MapInner({ position, onPositionChange, selectedLocation 
   }, [position]);
 
   // Handle selectedLocation center updates - zoom to 16 for searched locations
+  // Use primitive values as dependencies to ensure effect fires on coordinate changes
+  const selectedLat = selectedLocation?.lat;
+  const selectedLng = selectedLocation?.lng;
+  
   useEffect(() => {
-    if (!mapRef.current || !selectedLocation) return;
+    if (!mapRef.current || selectedLat === undefined || selectedLng === undefined) return;
     const map = mapRef.current;
-    const target: [number, number] = [selectedLocation.lat, selectedLocation.lng];
+    const target: [number, number] = [selectedLat, selectedLng];
     
     // Remove existing marker
     if (markerRef.current) {
@@ -86,7 +90,7 @@ export default function MapInner({ position, onPositionChange, selectedLocation 
     
     // Place new marker at searched location
     markerRef.current = L.marker(target).addTo(map);
-  }, [selectedLocation]);
+  }, [selectedLat, selectedLng]);
 
   return <div ref={containerRef} style={{ height: '100%', width: '100%' }} />;
 }
