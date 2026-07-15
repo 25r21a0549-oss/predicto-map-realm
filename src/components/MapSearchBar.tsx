@@ -21,7 +21,7 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchLocation = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim() || searchQuery.length < 3) {
