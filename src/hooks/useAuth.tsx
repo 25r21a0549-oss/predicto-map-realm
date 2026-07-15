@@ -14,27 +14,62 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isStaleRefreshTokenError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const msg = (error as { message?: string }).message ?? '';
+  const code = (error as { code?: string }).code ?? '';
+  return (
+    code === 'refresh_token_not_found' ||
+    /refresh token/i.test(msg) ||
+    /invalid.*token/i.test(msg)
+  );
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, nextSession) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
         setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const bootstrap = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (error) throw error;
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+      } catch (err) {
+        if (isStaleRefreshTokenError(err)) {
+          // Clear the invalid local token so /auth becomes usable again.
+          try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
+        } else {
+          console.error('Auth bootstrap error:', err);
+        }
+        if (!cancelled) {
+          setSession(null);
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-    return () => subscription.unsubscribe();
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
