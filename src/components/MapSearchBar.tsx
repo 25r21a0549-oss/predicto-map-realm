@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Search, MapPin, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -100,8 +101,8 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
 
       const loc = place.location;
       if (!loc) throw new Error('Place has no location');
-      const lat = typeof loc.lat === 'function' ? loc.lat() : (loc.lat as number);
-      const lng = typeof loc.lng === 'function' ? loc.lng() : (loc.lng as number);
+      const lat = typeof loc.lat === 'function' ? loc.lat() : (loc.lat as unknown as number);
+      const lng = typeof loc.lng === 'function' ? loc.lng() : (loc.lng as unknown as number);
 
       const name =
         place.displayName ||

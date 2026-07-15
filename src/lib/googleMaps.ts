@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 // Shared Google Maps JS API loader.
 // Loads the script once (with Places library) and caches the promise.
 import { supabase } from '@/integrations/supabase/client';
