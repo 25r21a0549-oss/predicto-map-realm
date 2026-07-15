@@ -1,14 +1,14 @@
+/// <reference types="google.maps" />
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Search, MapPin, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { loadGoogleMaps } from '@/lib/googleMaps';
 
-interface SearchResult {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
-  type: string;
+interface Suggestion {
+  placeId: string;
+  primary: string;
+  secondary: string;
 }
 
 interface MapSearchBarProps {
@@ -17,67 +17,108 @@ interface MapSearchBarProps {
 
 export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const placesReadyRef = useRef(false);
+
+  // Preload the Maps JS API (with Places library) as soon as the search bar mounts.
+  useEffect(() => {
+    loadGoogleMaps()
+      .then(() => {
+        placesReadyRef.current = true;
+      })
+      .catch((err) => {
+        console.error('[MapSearchBar] Maps load failed:', err);
+      });
+  }, []);
+
+  const ensureSessionToken = useCallback(async () => {
+    if (sessionTokenRef.current) return sessionTokenRef.current;
+    const g = await loadGoogleMaps();
+    const { AutocompleteSessionToken } = (await g.maps.importLibrary('places')) as google.maps.PlacesLibrary;
+    sessionTokenRef.current = new AutocompleteSessionToken();
+    return sessionTokenRef.current;
+  }, []);
 
   const searchLocation = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim() || searchQuery.length < 3) {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
       setResults([]);
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`,
-        {
-          headers: {
-            'Accept-Language': 'en',
-          },
-        }
-      );
-      
-      if (response.ok) {
-        const data: SearchResult[] = await response.json();
-        setResults(data);
-        setShowResults(true);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
+      const g = await loadGoogleMaps();
+      const placesLib = (await g.maps.importLibrary('places')) as google.maps.PlacesLibrary;
+      const token = await ensureSessionToken();
+
+      const { suggestions } = await placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        input: trimmed,
+        sessionToken: token,
+      });
+
+      const parsed: Suggestion[] = (suggestions || [])
+        .map((s: { placePrediction?: { placeId: string; mainText?: { text: string }; secondaryText?: { text: string }; text?: { text: string } } }) => {
+          const p = s.placePrediction;
+          if (!p) return null;
+          return {
+            placeId: p.placeId,
+            primary: p.mainText?.text ?? p.text?.text ?? '',
+            secondary: p.secondaryText?.text ?? '',
+          };
+        })
+        .filter(Boolean) as Suggestion[];
+
+      setResults(parsed);
+      setShowResults(true);
+    } catch (err) {
+      console.error('[MapSearchBar] autocomplete error:', err);
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ensureSessionToken]);
 
   const handleInputChange = useCallback((value: string) => {
     setQuery(value);
-    
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    
-    debounceRef.current = setTimeout(() => {
-      searchLocation(value);
-    }, 300);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchLocation(value), 300);
   }, [searchLocation]);
 
-  const handleResultSelect = useCallback((result: SearchResult) => {
-    const lat = parseFloat(result.lat);
-    const lng = parseFloat(result.lon);
-    
-    onLocationSelect({
-      lat,
-      lng,
-      name: result.display_name,
-    });
-    
-    setQuery(result.display_name.split(',')[0]);
-    setShowResults(false);
-    setResults([]);
+  const handleResultSelect = useCallback(async (suggestion: Suggestion) => {
+    try {
+      const g = await loadGoogleMaps();
+      const placesLib = (await g.maps.importLibrary('places')) as google.maps.PlacesLibrary;
+      const token = sessionTokenRef.current;
+
+      const place = new placesLib.Place({ id: suggestion.placeId });
+      await place.fetchFields({ fields: ['location', 'displayName', 'formattedAddress'] });
+
+      const loc = place.location;
+      if (!loc) throw new Error('Place has no location');
+      const lat = typeof loc.lat === 'function' ? loc.lat() : (loc.lat as unknown as number);
+      const lng = typeof loc.lng === 'function' ? loc.lng() : (loc.lng as unknown as number);
+
+      const name =
+        place.displayName ||
+        place.formattedAddress ||
+        suggestion.primary;
+
+      onLocationSelect({ lat, lng, name });
+      setQuery(suggestion.primary);
+      setShowResults(false);
+      setResults([]);
+      // End the billing session — mint a fresh token on next query.
+      sessionTokenRef.current = null;
+      void token; // (kept for clarity)
+    } catch (err) {
+      console.error('[MapSearchBar] place details error:', err);
+    }
   }, [onLocationSelect]);
 
   const clearSearch = useCallback(() => {
@@ -93,7 +134,6 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
         setShowResults(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -129,18 +169,23 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
           {results.map((result) => (
             <button
-              key={result.place_id}
+              key={result.placeId}
               onClick={() => handleResultSelect(result)}
               className="w-full px-3 py-2 text-left hover:bg-accent transition-colors flex items-start gap-2"
             >
               <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-sm line-clamp-2">{result.display_name}</span>
+              <span className="text-sm line-clamp-2">
+                {result.primary}
+                {result.secondary && (
+                  <span className="text-muted-foreground"> — {result.secondary}</span>
+                )}
+              </span>
             </button>
           ))}
         </div>
       )}
 
-      {showResults && query.length >= 3 && !loading && results.length === 0 && (
+      {showResults && query.length >= 2 && !loading && results.length === 0 && (
         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-center text-sm text-muted-foreground">
           No locations found
         </div>
