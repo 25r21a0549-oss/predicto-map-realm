@@ -38,8 +38,7 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
   const ensureSessionToken = useCallback(async () => {
     if (sessionTokenRef.current) return sessionTokenRef.current;
     const g = await loadGoogleMaps();
-    // @ts-expect-error - importLibrary is the runtime way to get the places namespace with new API.
-    const { AutocompleteSessionToken } = await g.maps.importLibrary('places');
+    const { AutocompleteSessionToken } = (await g.maps.importLibrary('places')) as google.maps.PlacesLibrary;
     sessionTokenRef.current = new AutocompleteSessionToken();
     return sessionTokenRef.current;
   }, []);
@@ -54,8 +53,7 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
     setLoading(true);
     try {
       const g = await loadGoogleMaps();
-      // @ts-expect-error - runtime import
-      const placesLib = await g.maps.importLibrary('places');
+      const placesLib = (await g.maps.importLibrary('places')) as google.maps.PlacesLibrary;
       const token = await ensureSessionToken();
 
       const { suggestions } = await placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
@@ -94,8 +92,7 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
   const handleResultSelect = useCallback(async (suggestion: Suggestion) => {
     try {
       const g = await loadGoogleMaps();
-      // @ts-expect-error - runtime import
-      const placesLib = await g.maps.importLibrary('places');
+      const placesLib = (await g.maps.importLibrary('places')) as google.maps.PlacesLibrary;
       const token = sessionTokenRef.current;
 
       const place = new placesLib.Place({ id: suggestion.placeId });
