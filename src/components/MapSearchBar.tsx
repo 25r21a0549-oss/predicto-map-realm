@@ -100,8 +100,8 @@ export function MapSearchBar({ onLocationSelect }: MapSearchBarProps) {
 
       const loc = place.location;
       if (!loc) throw new Error('Place has no location');
-      const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
-      const lng = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+      const lat = typeof loc.lat === 'function' ? loc.lat() : (loc.lat as number);
+      const lng = typeof loc.lng === 'function' ? loc.lng() : (loc.lng as number);
 
       const name =
         place.displayName ||
